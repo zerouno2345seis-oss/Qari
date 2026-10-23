@@ -46,7 +46,10 @@ async function sample(ctx = {}) {
     disks: fs.filter(d => d.size > 0).map(d => ({ mount: d.mount, fs: d.fs, size: d.size, used: d.used, usePct: d.use })),
     processCount: procs.all,
     top,
+    sensors: ctx.sensors || null,
+    netApps: ctx.netApps || [],
   };
+  if (snapshot.sensors?.dieTemp != null) snapshot.temp.cpu = snapshot.sensors.dieTemp;
   snapshot.score = healthScore(snapshot);
   snapshot.advice = evaluate(snapshot, ctx);
   return snapshot;

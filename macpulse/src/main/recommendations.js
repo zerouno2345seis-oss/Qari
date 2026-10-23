@@ -30,6 +30,15 @@ function evaluate(s, ctx = {}) {
     else if (s.temp.cpu >= 85) add('temp-high', 'warning', 'حرارة المعالج مرتفعة', `${s.temp.cpu.toFixed(0)}°C، وقد يتباطأ المعالج تلقائيًا (Thermal Throttling).`);
   }
 
+  const th = s.sensors && s.sensors.thermal;
+  if (th && !/nominal/i.test(th)) {
+    add('thermal-pressure', /heavy|critical|trapping|sleeping/i.test(th) ? 'critical' : 'warning', 'ضغط حراري على النظام',
+      `مستوى الضغط الحراري: ${th}. يخفّض النظام سرعة المعالج للحفاظ على الحرارة؛ حسّن التهوية وأغلق الأعمال الثقيلة.`);
+  }
+  if (s.sensors && s.sensors.fans && s.sensors.fans.some(f => f > 5500)) {
+    add('fan-max', 'info', 'المراوح تعمل بسرعة عالية', `${Math.max(...s.sensors.fans)} RPM، وهذا يدل على حِمل حراري مستمر.`);
+  }
+
   const b = s.battery;
   if (b && b.hasBattery) {
     if (b.health != null && b.health < 80) add('batt-health', 'warning', 'صحة البطارية منخفضة', `السعة الحالية ${b.health.toFixed(0)}% من التصميم الأصلي. فكّر في استبدالها.`);

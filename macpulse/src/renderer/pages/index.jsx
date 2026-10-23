@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AreaChart, Gauge, Bar, StackBar, Card } from '../components/charts.jsx';
 import { api } from '../api.js';
+import { groupByApp } from '../groups.js';
 import { fmtBytes, fmtRate, pct, colorFor } from '../utils.js';
+import { NetApps, DiskExplorer } from './extra.jsx';
+export { StartupPage, SensorsPage, HistoryPage, ToolsPage, SettingsPage } from './extra.jsx';
 
 const C = { cpu: '#5ac8fa', mem: '#bf5af2', temp: '#ff9f0a', rx: '#30d158', tx: '#ff6482', io: '#64d2ff' };
 const SEV = { critical: 'حرج', warning: 'تحذير', info: 'معلومة' };
@@ -67,6 +70,19 @@ export function Dashboard({ s, h, go }) {
         </Card>
         <Card title="الحرارة" right={<span className="big" style={{ color: C.temp }}>{s.temp.cpu != null ? `${s.temp.cpu.toFixed(0)}°C` : '—'}</span>}>
           <AreaChart max={110} series={[{ data: h.temp, color: C.temp }]} format={v => `${v.toFixed(0)}°`} />
+        </Card>
+      </div>
+      <div className="grid g2">
+        <Card title="الشبكة حسب التطبيق"><NetApps apps={s.netApps} /></Card>
+        <Card title="الحرارة والطاقة" right={<button className="link" onClick={() => go('sensors')}>التفاصيل</button>}>
+          {s.sensors?.active ? (
+            <div className="legend big-legend">
+              <span>الضغط الحراري: <b>{s.sensors.thermal || '—'}</b></span>
+              <span>GPU: <b>{pct(s.sensors.gpu.active)}</b></span>
+              <span>الطاقة: <b>{s.sensors.power.package != null ? `${s.sensors.power.package.toFixed(1)}W` : '—'}</b></span>
+              <span>المراوح: <b>{s.sensors.fans.length ? s.sensors.fans.map(f => Math.round(f)).join(' / ') + ' RPM' : '—'}</b></span>
+            </div>
+          ) : <p className="dim">فعّل المستشعرات العميقة من صفحة «المستشعرات» لقراءة الضغط الحراري والمراوح والـ GPU والطاقة.</p>}
         </Card>
       </div>
       <div className="grid g2">
@@ -147,6 +163,7 @@ export function ProcessesPage({ s }) {
   const [q, setQ] = useState('');
   const [sort, setSort] = useState('cpu');
   const [msg, setMsg] = useState('');
+  const [grouped, setGrouped] = useState(false);
   const rows = useMemo(() => s.top
     .filter(p => p.name.toLowerCase().includes(q.toLowerCase()))
     .sort((a, b) => (sort === 'name' ? a.name.localeCompare(b.name) : sort === 'mem' ? b.memBytes - a.memBytes : b.cpu - a.cpu)),
@@ -167,7 +184,16 @@ export function ProcessesPage({ s }) {
             ))}
           </div>
         </div>
+        <label className="row"><span>تجميع حسب التطبيق (يضم العمليات المساعدة)</span><input type="checkbox" checked={grouped} onChange={e => setGrouped(e.target.checked)} /></label>
         {msg && <div className="note">{msg}</div>}
+        {grouped ? (
+          <table className="tbl full">
+            <thead><tr><th>التطبيق</th><th>العمليات</th><th>المعالج</th><th>الذاكرة</th></tr></thead>
+            <tbody>{groupByApp(s.top).filter(g => g.name.toLowerCase().includes(q.toLowerCase())).map(g => (
+              <tr key={g.name}><td>{g.name}</td><td className="num dim">{g.count}</td><td className="num" style={{ color: colorFor(g.cpu, 40, 80) }}>{pct(g.cpu, 1)}</td><td className="num">{fmtBytes(g.memBytes)}</td></tr>
+            ))}</tbody>
+          </table>
+        ) : (
         <table className="tbl full">
           <thead><tr><th>العملية</th><th>PID</th><th>المعالج</th><th>الذاكرة</th><th /></tr></thead>
           <tbody>
@@ -181,6 +207,7 @@ export function ProcessesPage({ s }) {
             ))}
           </tbody>
         </table>
+        )}
       </Card>
     </>
   );
@@ -232,34 +259,7 @@ export function StoragePage({ s, h }) {
         )}
         {res && !res.cancelled && <div className="note good">نُقل {res.trashed} عنصرًا ({fmtBytes(res.bytes)})، وتعذّر {res.failed}.</div>}
       </Card>
-    </>
-  );
-}
-
-export function StartupPage() {
-  const [items, setItems] = useState(null);
-  useEffect(() => { api.listStartup().then(setItems); }, []);
-  return (
-    <>
-      <Title sub="البرامج والخدمات التي تعمل مع النظام">بدء التشغيل</Title>
-      <Card right={<span className="dim">{items ? `${items.length} عنصر` : ''}</span>}>
-        {!items ? <div className="loading">جارٍ القراءة…</div> : (
-          <table className="tbl full">
-            <thead><tr><th>العنصر</th><th>النطاق</th><th>تشغيل عند الدخول</th><th /></tr></thead>
-            <tbody>
-              {items.map(i => (
-                <tr key={i.file}>
-                  <td><b>{i.label}</b><small className="dim block">{i.file}</small></td>
-                  <td>{i.scope}</td>
-                  <td>{i.runAtLoad == null ? '—' : i.runAtLoad ? 'نعم' : 'لا'}</td>
-                  <td><button onClick={() => api.reveal(i.file)}>إظهار في Finder</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        <p className="dim">للتعطيل: افتح الملف في Finder وانقله خارج المجلد، أو استخدم إعدادات النظام ‹ عناصر تسجيل الدخول›.</p>
-      </Card>
+      <DiskExplorer />
     </>
   );
 }

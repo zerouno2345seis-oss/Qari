@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api, isMock } from './api.js';
-import { Dashboard, CpuPage, MemoryPage, ProcessesPage, StoragePage, StartupPage, HardwarePage, InsightsPage } from './pages/index.jsx';
+import { Dashboard, CpuPage, MemoryPage, ProcessesPage, StoragePage, StartupPage, HardwarePage, InsightsPage, SensorsPage, HistoryPage, ToolsPage, SettingsPage } from './pages/index.jsx';
 
 const HISTORY = 90;
 const PAGES = [
@@ -10,8 +10,12 @@ const PAGES = [
   ['processes', 'العمليات', '☰', ProcessesPage],
   ['storage', 'التخزين والتنظيف', '◔', StoragePage],
   ['startup', 'بدء التشغيل', '⏻', StartupPage],
+  ['sensors', 'المستشعرات', '❄', SensorsPage],
+  ['history', 'السجل', '◷', HistoryPage],
   ['hardware', 'إمكانيات الجهاز', '⌘', HardwarePage],
+  ['tools', 'الأدوات', '⚒', ToolsPage],
   ['insights', 'التوصيات', '✦', InsightsPage],
+  ['settings', 'الإعدادات', '⚙', SettingsPage],
 ];
 
 const push = (arr, v) => [...arr, v].slice(-HISTORY);
@@ -19,7 +23,7 @@ const push = (arr, v) => [...arr, v].slice(-HISTORY);
 export default function App() {
   const [page, setPage] = useState('dashboard');
   const [cur, setCur] = useState(null);
-  const [hist, setHist] = useState({ cpu: [], mem: [], temp: [], rx: [], tx: [], swap: [], read: [], write: [] });
+  const [hist, setHist] = useState({ cpu: [], mem: [], temp: [], rx: [], tx: [], swap: [], read: [], write: [], gpu: [], power: [] });
   const ref = useRef(setHist);
 
   useEffect(() => api.onTick(s => {
@@ -31,6 +35,7 @@ export default function App() {
       rx: push(h.rx, s.net.rx), tx: push(h.tx, s.net.tx),
       swap: push(h.swap, s.mem.swapUsed),
       read: push(h.read, s.io?.read ?? 0), write: push(h.write, s.io?.write ?? 0),
+      gpu: push(h.gpu, s.sensors?.gpu?.active ?? 0), power: push(h.power, s.sensors?.power?.package ?? 0),
     }));
   }), []);
 

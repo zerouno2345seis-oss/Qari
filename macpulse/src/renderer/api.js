@@ -1,5 +1,12 @@
 // Uses the Electron bridge when present; otherwise a mock feed so the UI can be developed in a browser.
 const GB = 1024 ** 3;
+const mockSensors = { active: false };
+let mockSettings = { notifications: true, historyEnabled: true, cpuAlert: 90, memAlert: 92, tempAlert: 90, diskFreeAlert: 10, batteryAlert: 15, sustainSamples: 3 };
+let mockStartup = [
+  { label: 'com.spotify.webhelper', file: '~/Library/LaunchAgents/com.spotify.webhelper.plist', scope: 'المستخدم', runAtLoad: true, disabled: false },
+  { label: 'com.docker.vmnetd', file: '/Library/LaunchDaemons/com.docker.vmnetd.plist', scope: 'النظام (خدمة)', runAtLoad: true, disabled: false },
+  { label: 'com.adobe.acc', file: '/Library/LaunchAgents/com.adobe.acc.plist', scope: 'كل المستخدمين', runAtLoad: true, disabled: true },
+];
 
 function mockSampler() {
   let cpu = 30, mem = 9 * GB, temp = 55, rx = 2e5, tx = 6e4;
@@ -22,6 +29,8 @@ function mockSampler() {
       net: { rx, tx }, io: { read: Math.random() * 40, write: Math.random() * 25 },
       disks: [{ mount: '/', fs: 'APFS', size: 500 * GB, used: 410 * GB, usePct: 82 }],
       processCount: 412, top,
+      sensors: mockSensors.active ? { active: true, dieTemp: temp, gpu: { active: Math.max(0, cpu * 0.4), freqMHz: 444 }, thermal: temp > 88 ? 'Heavy' : temp > 75 ? 'Moderate' : 'Nominal', fans: [1800 + temp * 20, 1750 + temp * 20], power: { cpu: cpu / 12, gpu: cpu / 40, ane: 0, package: cpu / 12 + cpu / 40 } } : { active: false },
+      netApps: [{ name: 'Google Chrome', pid: 1, rx: rx * 0.6, tx: tx * 0.5 }, { name: 'Dropbox', pid: 2, rx: rx * 0.25, tx: tx * 0.4 }, { name: 'Spotify', pid: 3, rx: rx * 0.1, tx: 2000 }],
     };
     const memPct = (s.mem.used / total) * 100;
     s.score = Math.round(Math.max(0, 100 - Math.max(0, cpu - 50) * 0.5 - Math.max(0, memPct - 60) * 0.6 - Math.max(0, temp - 70) * 0.8));
@@ -55,11 +64,38 @@ export const api = real || {
     { id: 'user-logs', name: 'سجلات المستخدم (Logs)', dir: '~/Library/Logs', bytes: 0.2 * GB },
   ],
   runCleanup: async ids => ({ trashed: ids.length * 12, failed: 0, bytes: ids.length * GB }),
-  listStartup: async () => [
-    { label: 'com.spotify.webhelper', file: '~/Library/LaunchAgents/com.spotify.webhelper.plist', scope: 'المستخدم', runAtLoad: true },
-    { label: 'com.docker.helper', file: '/Library/LaunchDaemons/com.docker.vmnetd.plist', scope: 'النظام (خدمة)', runAtLoad: true },
-    { label: 'com.adobe.AdobeCreativeCloud', file: '/Library/LaunchAgents/com.adobe.acc.plist', scope: 'كل المستخدمين', runAtLoad: true },
+  listStartup: async () => mockStartup.map(x => ({ ...x })),
+  startupDisable: async f => { mockStartup = mockStartup.map(x => (x.file === f ? { ...x, disabled: true } : x)); return { ok: true }; },
+  startupEnable: async f => { mockStartup = mockStartup.map(x => (x.file === f ? { ...x, disabled: false } : x)); return { ok: true }; },
+  listLoginItems: async () => ['Dropbox', 'Rectangle', 'Raycast'],
+  removeLoginItem: async () => ({ ok: true }),
+  sensorsEnable: async () => { mockSensors.active = true; return { ok: true }; },
+  sensorsDisable: async () => { mockSensors.active = false; return { ok: true }; },
+  history: async range => {
+    const n = 120, now = Date.now();
+    return Array.from({ length: n }, (_, i) => ({ t: now - (n - i) * (range / n), cpu: 30 + 25 * Math.sin(i / 9) + (i % 7), mem: 55 + 12 * Math.sin(i / 21), temp: 55 + 14 * Math.sin(i / 11), rx: 3e5 + 2e5 * Math.sin(i / 5) ** 2, tx: 8e4, score: 90 - 10 * Math.abs(Math.sin(i / 13)) }));
+  },
+  exportHistory: async () => ({ ok: true }),
+  listActions: async () => [
+    { id: 'purge', name: 'تفريغ الذاكرة غير النشطة', note: 'يستدعي purge ويحتاج كلمة مرور المدير' },
+    { id: 'flushdns', name: 'مسح ذاكرة DNS', note: 'يفيد عند مشاكل الاتصال بالمواقع' },
+    { id: 'dock', name: 'إعادة تشغيل Dock', note: 'يعالج بطء Dock وMission Control' },
+    { id: 'finder', name: 'إعادة تشغيل Finder', note: 'يعالج تجمّد Finder' },
   ],
+  runAction: async () => ({ ok: true }),
+  benchmark: async () => {
+    await new Promise(r => setTimeout(r, 800));
+    return { ok: true, bench: { cores: 12, cpuSingle: 410, cpuMulti: 3900, memGBs: 38.4, diskWrite: 2650, diskRead: 5100 }, advice: { uses: [
+      { name: 'التصفح والمكتب والبريد', level: 'ممتاز', note: 'أي جهاز حديث يكفي لذلك.' },
+      { name: 'برمجة وتطوير (IDE + Docker)', level: 'جيد', note: 'الذاكرة تتسع لبيئات تطوير متعددة.' },
+      { name: 'نماذج الذكاء الاصطناعي المحلية', level: 'نماذج صغيرة حتى 7B', note: 'الذاكرة الموحدة هي العامل الحاسم.' },
+    ], tips: [] } };
+  },
+  folderSizes: async () => [{ path: '~/Library', name: 'Library', bytes: 61 * GB }, { path: '~/Movies', name: 'Movies', bytes: 38 * GB }, { path: '~/Developer', name: 'Developer', bytes: 22 * GB }, { path: '~/Downloads', name: 'Downloads', bytes: 9 * GB }],
+  largeFiles: async () => [{ path: '~/Movies/render.mov', name: 'render.mov', bytes: 8.1 * GB }, { path: '~/Downloads/macOS.dmg', name: 'macOS.dmg', bytes: 13 * GB }],
+  trashPath: async () => ({ ok: true }),
+  getSettings: async () => mockSettings,
+  setSettings: async p => { mockSettings = { ...mockSettings, ...p }; return mockSettings; },
   killProcess: async () => ({ ok: false, error: 'غير متاح في الوضع التجريبي' }),
   reveal: async () => {},
 };
