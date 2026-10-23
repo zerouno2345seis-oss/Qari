@@ -1,0 +1,17 @@
+{
+  "name": "macpulse",
+  "version": "0.1.0",
+  "description": "Native-feeling Electron app for deep macOS performance monitoring and optimization",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --mac"
+  },
+  "dependencies": {
+    "systeminformation": "^5.23.0"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  }
+}
