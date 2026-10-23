@@ -54,7 +54,8 @@
         }
       ]
     },
-    "publish": null
+    "publish": null,
+    "afterPack": "scripts/adhoc-sign.js"
   },
   "author": "MacPulse"
 }
