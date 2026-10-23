@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "start": "npm run build && electron .",
-    "test": "node --test \"test/*.test.js\"",
+    "test": "node --test",
     "dist": "npm run build && electron-builder --mac --publish never",
     "pack": "npm run build && electron-builder --mac --dir --publish never"
   },
