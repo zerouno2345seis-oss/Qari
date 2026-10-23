@@ -1,0 +1,44 @@
+name: Build MacPulse (macOS)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/gifted-ride-pk0p5b, main]
+    paths: ['macpulse/**', '.github/workflows/build-mac.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: macpulse
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: macpulse/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run dist
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MacPulse-mac
+          path: |
+            macpulse/release/*.dmg
+            macpulse/release/*.zip
+      - name: Publish downloadable build (pre-release "mac-latest")
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete mac-latest --yes --cleanup-tag || true
+          gh release create mac-latest release/*.dmg release/*.zip \
+            --prerelease --target "$GITHUB_SHA" \
+            --title "MacPulse (latest build)" \
+            --notes "Unsigned build. First launch: right-click the app, choose Open. Apple Silicon: *-arm64, Intel: *-x64."
