@@ -502,10 +502,21 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
     <label for="subject">عنوان الطلب (اختياري — يُكتب في خانة «تفاصيل الطلب» العلوية)</label>
     <input type="text" id="subject" placeholder="مثال: شراء مستلزمات مكتبية">
+    <div class="hint">يُسمّى ملف PDF والصورة باسم عنوان الطلب.</div>
 
     <label for="details">البيان / تفاصيل الطلب</label>
     <textarea id="details" placeholder="اكتب تفاصيل الطلب هنا… يُوزَّع النص تلقائيًا على الأسطر المنقّطة (5 أسطر)."></textarea>
     <div class="hint" id="detailsHint"></div>
+
+    <label for="price">السعر (يُكتب في السطر الأول: يسارًا للنص العربي، ويمينًا للنص الإسباني)</label>
+    <div class="row">
+      <input type="text" id="price" inputmode="decimal" placeholder="مثال: 1250 أو 1.250,50">
+      <select id="currency">
+        <option value="ARS">بيسو أرجنتيني (ARS)</option>
+        <option value="USD">دولار أمريكي (USD)</option>
+      </select>
+    </div>
+    <div class="hint" id="priceHint"></div>
 
     <label>حجم خط التفاصيل: <span id="fsVal"></span></label>
     <input type="range" id="fontSize" min="14" max="30" step="1" value="22">
@@ -533,7 +544,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <div class="hint">تُزال الخلفية البيضاء تلقائيًا ويُقصّ الهامش الفارغ.</div>
     </div>
     <label>حجم التوقيع: <span id="ssVal"></span></label>
-    <input type="range" id="sigScale" min="60" max="180" step="5" value="100">
+    <input type="range" id="sigScale" min="60" max="200" step="5" value="140">
 
     <div class="chk"><input type="checkbox" id="remember" checked><span>حفظ الاسم والجهة والتوقيع على هذا الجهاز</span></div>
 
@@ -602,7 +613,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   }
 
   // Wrap paragraphs into lines of max width (in template px) at given font size.
-  function wrap(ctx, text, maxW, px) {
+  function wrap(ctx, text, widthFor, px) {
+    const mw = () => widthFor(lines.length) * SCALE;
     setFont(ctx, px);
     const lines = [];
     for (const para of text.replace(/\r/g, '').split('\n')) {
@@ -612,12 +624,12 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       let cur = '';
       for (const word of words) {
         const test = cur ? cur + ' ' + word : word;
-        if (ctx.measureText(test).width <= maxW * SCALE || !cur) {
+        if (ctx.measureText(test).width <= mw() || !cur) {
           // break a single overlong word by characters
-          if (!cur && ctx.measureText(word).width > maxW * SCALE) {
+          if (!cur && ctx.measureText(word).width > mw()) {
             let piece = '';
             for (const ch of word) {
-              if (ctx.measureText(piece + ch).width > maxW * SCALE) { lines.push({ t: piece, rtl }); piece = ch; }
+              if (ctx.measureText(piece + ch).width > mw()) { lines.push({ t: piece, rtl }); piece = ch; }
               else piece += ch;
             }
             cur = piece;
@@ -717,12 +729,35 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     if (!$('remember').checked) { store.set({ remember: false }); return; }
     const s = store.get();
     Object.assign(s, { remember: true, name: $('name').value, authority: $('authority').value,
-      dateFmt: $('dateFmt').value, fontSize: $('fontSize').value, sigScale: $('sigScale').value });
+      dateFmt: $('dateFmt').value, fontSize: $('fontSize').value, sigScale2: $('sigScale').value, currency: $('currency').value });
     store.set(s);
   }
   function saveSig() {
     if (!$('remember').checked) return;
     const s = store.get(); s.sig = sigImg ? sigImg.toDataURL('image/png') : null; store.set(s);
+  }
+
+  // ===== price =====
+  // Accepts 1250 | 1.250 | 1250,5 | 1.250,50 | 1,250.50 and prints Argentine style (1.250,50).
+  function parsePrice(raw) {
+    let t = (raw || '').replace(/[^\d.,]/g, '');
+    if (!t || !/\d/.test(t)) return null;
+    const lastDot = t.lastIndexOf('.'), lastComma = t.lastIndexOf(',');
+    let dec = -1;
+    if (lastDot >= 0 && lastComma >= 0) dec = Math.max(lastDot, lastComma);
+    else if (lastComma >= 0) dec = (t.length - lastComma - 1 <= 2) ? lastComma : -1;
+    else if (lastDot >= 0) dec = (t.length - lastDot - 1 === 3 && t.indexOf('.') !== -1) ? -1 : lastDot;
+    let intPart = dec >= 0 ? t.slice(0, dec) : t, frac = dec >= 0 ? t.slice(dec + 1) : '';
+    intPart = intPart.replace(/[.,]/g, '') || '0'; frac = frac.replace(/[.,]/g, '');
+    return { value: parseFloat(intPart + (frac ? '.' + frac : '')), hasDec: frac.length > 0 };
+  }
+  function formatPrice(rtl) {
+    const p = parsePrice($('price').value), hint = $('priceHint');
+    if (!p || isNaN(p.value)) { hint.textContent = $('price').value.trim() ? 'أدخل رقمًا صحيحًا.' : ''; return ''; }
+    const num = new Intl.NumberFormat('es-AR', { minimumFractionDigits: p.hasDec ? 2 : 0, maximumFractionDigits: 2 }).format(p.value);
+    const amount = `${$('currency').value} ${num}`;
+    hint.textContent = 'سيُطبع: ' + amount;
+    return rtl ? `السعر: ${amount}` : `Precio: ${amount}`;
   }
 
   // ===== render =====
@@ -759,11 +794,31 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     // details on dotted lines
     const L = G.lines, maxW = L.x2 - L.x1, n = L.ys.length, text = $('details').value.trim();
     const hint = $('detailsHint'); hint.textContent = ''; hint.className = 'hint';
+    // Price goes on the first line: far left when the request is Arabic, far right when it is Spanish.
+    const firstPara = (text.split('\n').find(t => t.trim()) || '');
+    const docRTL = isRTL(firstPara);
+    const price = formatPrice(docRTL);
+    const priceSize = () => Math.max(+$('fontSize').value, 18);
+    let priceW = 0;
+    if (price) { setFont(ctx, priceSize()); ctx.direction = docRTL ? 'rtl' : 'ltr'; priceW = ctx.measureText(price).width / SCALE + 24; }
+    const widthFor = i => (i === 0 ? maxW - priceW : maxW);
+    if (price) {
+      setFont(ctx, priceSize());
+      ctx.save(); ctx.strokeStyle = INK; ctx.lineWidth = 0.6 * SCALE;   // slightly bolder than body text
+      ctx.direction = docRTL ? 'rtl' : 'ltr';
+      ctx.textAlign = docRTL ? 'left' : 'right';
+      const px0 = (docRTL ? L.x1 : L.x2) * SCALE, py0 = (L.ys[0] - 6) * SCALE;
+      ctx.strokeText(price, px0, py0); ctx.fillText(price, px0, py0); ctx.restore();
+    }
     if (text) {
-      let px = +$('fontSize').value, lines = wrap(ctx, text, maxW, px);
-      while (lines.length > n && px > 12) { px -= 0.5; lines = wrap(ctx, text, maxW, px); }
+      let px = +$('fontSize').value, lines = wrap(ctx, text, widthFor, px);
+      while (lines.length > n && px > 12) { px -= 0.5; lines = wrap(ctx, text, widthFor, px); }
       setFont(ctx, px);
-      lines.slice(0, n).forEach((ln, i) => { if (ln.t) drawLine(ctx, ln.t, L.x1, L.x2, L.ys[i] - 6, ln.rtl); });
+      lines.slice(0, n).forEach((ln, i) => { if (!ln.t) return;
+        // keep line 1 clear of the price
+        const x1 = (i === 0 && price && !docRTL) ? L.x1 : (i === 0 && price ? L.x1 + priceW : L.x1);
+        const x2 = (i === 0 && price && !docRTL) ? L.x2 - priceW : L.x2;
+        drawLine(ctx, ln.t, x1, x2, L.ys[i] - 6, ln.rtl); });
       if (lines.length > n) { hint.textContent = `تنبيه: النص أطول من المساحة المتاحة؛ لم يُطبع ${lines.length - n} سطر/أسطر. اختصر النص.`; hint.className = 'hint warn'; }
       else if (px < +$('fontSize').value) hint.textContent = `صُغِّر الخط تلقائيًا إلى ${px} ليتّسع النص.`;
     }
@@ -786,7 +841,10 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   }
 
   // ===== export =====
-  const fileBase = () => `Nota-de-Pedido-${$('date').value || 'sin-fecha'}`;
+  const fileBase = () => {
+    const t = $('subject').value.replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+    return t || `Nota-de-Pedido-${$('date').value || 'sin-fecha'}`;
+  };
   const status = msg => { $('status').textContent = msg; };
   function download(blob, name) {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
@@ -827,7 +885,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   }
 
   $('btnReset').addEventListener('click', () => {
-    $('subject').value = ''; $('details').value = ''; $('compra').checked = false;
+    $('subject').value = ''; $('details').value = ''; $('price').value = ''; $('compra').checked = false;
     $('date').value = todayISO(); status(''); render();
   });
 
@@ -848,11 +906,12 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   if (s.authority) $('authority').value = s.authority;
   if (s.dateFmt) $('dateFmt').value = s.dateFmt;
   if (s.fontSize) $('fontSize').value = s.fontSize;
-  if (s.sigScale) $('sigScale').value = s.sigScale;
+  if (s.sigScale2) $('sigScale').value = s.sigScale2;
+  if (s.currency) $('currency').value = s.currency;
   if (s.sig) { const im = new Image(); im.onload = () => { sigImg = loadSigFromImage(im, false); render(); }; im.src = s.sig; }
 
   const showVals = () => { $('fsVal').textContent = $('fontSize').value; $('ssVal').textContent = $('sigScale').value + '%'; };
-  ['date','dateFmt','compra','subject','details','fontSize','name','authority','sigScale'].forEach(id => {
+  ['date','dateFmt','compra','subject','details','price','currency','fontSize','name','authority','sigScale'].forEach(id => {
     $(id).addEventListener('input', () => { showVals(); render(); });
     $(id).addEventListener('change', () => { showVals(); render(); saveProfile(); });
   });
