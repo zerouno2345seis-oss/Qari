@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>نموذج طلب</title>
+<style>/*__AMIRI_FONT__*/</style>
+<script>/*__JSPDF__*/</script>
+<style>
+  :root{
+    --bg:#f4f5f7; --card:#fff; --ink:#1d2330; --muted:#667085; --line:#d9dde5;
+    --accent:#1f4e79; --accent-ink:#fff; --danger:#b42318; --ok:#067647;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#12151b; --card:#1b2029; --ink:#e7eaf0; --muted:#98a2b3; --line:#2e3542;
+      --accent:#5b9bd5; --accent-ink:#0b1520;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,"Segoe UI",Tahoma,sans-serif;font-size:15px}
+  header{padding:16px;text-align:center}
+  header h1{margin:0;font-size:20px}
+  header p{margin:4px 0 0;color:var(--muted);font-size:13px}
+  main{max-width:1200px;margin:0 auto;padding:0 16px 32px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+  @media (max-width:900px){main{grid-template-columns:minmax(0,1fr)}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+  label{display:block;font-weight:600;margin:12px 0 6px;font-size:14px}
+  label:first-child{margin-top:0}
+  input[type=text],input[type=date],select,textarea{
+    width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);
+    font-family:"Amiri",serif;font-size:18px}
+  textarea{min-height:150px;resize:vertical;line-height:1.6}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .row > *{flex:1 1 140px}
+  .hint{color:var(--muted);font-size:12px;margin-top:4px}
+  .hint.warn{color:var(--danger)}
+  .chk{display:flex;align-items:center;gap:8px;font-weight:600;margin-top:12px}
+  .chk input{width:18px;height:18px}
+  .sigwrap{border:1px dashed var(--muted);border-radius:8px;background:#fff;touch-action:none;position:relative}
+  #sigPad{width:100%;height:170px;display:block;cursor:crosshair}
+  .tabs{display:flex;gap:6px;margin-bottom:8px}
+  .tabs button{flex:1}
+  button{font-family:inherit;font-size:14px;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+  button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600;font-size:16px}
+  button.active{outline:2px solid var(--accent)}
+  .actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}
+  .actions .primary{grid-column:1/-1;padding:14px}
+  input[type=range]{width:100%}
+  .preview{position:sticky;top:12px;align-self:start}
+  #preview{width:100%;height:auto;border:1px solid var(--line);border-radius:6px;background:#fff;display:block}
+  .status{margin-top:8px;font-size:13px;color:var(--ok);min-height:1.2em}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<header>
+  <h1>نموذج طلب — Nota de Pedido</h1>
+  <p>املأ الحقول، وراجع المعاينة، ثم اضغط «موافق» لتنزيل الملف بصيغتي PDF وصورة.</p>
+</header>
+
+<main>
+  <section class="card" id="formCard">
+    <label for="date">التاريخ (FECHA)</label>
+    <div class="row">
+      <input type="date" id="date">
+      <select id="dateFmt">
+        <option value="greg">ميلادي</option>
+        <option value="hijri">هجري</option>
+        <option value="both">ميلادي + هجري</option>
+        <option value="none">بلا تاريخ</option>
+      </select>
+    </div>
+
+    <div class="chk"><input type="checkbox" id="compra"><span>تأشير خانة «مشتريات / تأمين — COMPRA»</span></div>
+
+    <label for="subject">عنوان الطلب (اختياري — يُكتب في خانة «تفاصيل الطلب» العلوية)</label>
+    <input type="text" id="subject" placeholder="مثال: شراء مستلزمات مكتبية">
+
+    <label for="details">البيان / تفاصيل الطلب</label>
+    <textarea id="details" placeholder="اكتب تفاصيل الطلب هنا… يُوزَّع النص تلقائيًا على الأسطر المنقّطة (5 أسطر)."></textarea>
+    <div class="hint" id="detailsHint"></div>
+
+    <label>حجم خط التفاصيل: <span id="fsVal"></span></label>
+    <input type="range" id="fontSize" min="14" max="30" step="1" value="22">
+    <div class="hint">إذا زاد النص عن الأسطر الخمسة يُصغَّر الخط تلقائيًا ليتّسع.</div>
+
+    <label for="name">الاسم (NOMBRE)</label>
+    <input type="text" id="name">
+
+    <label for="authority">الجهة (AUTORIDAD)</label>
+    <input type="text" id="authority">
+
+    <label>التوقيع (FIRMA)</label>
+    <div class="tabs">
+      <button type="button" id="tabDraw" class="active">رسم التوقيع</button>
+      <button type="button" id="tabUpload">رفع صورة التوقيع</button>
+    </div>
+    <div id="drawBox">
+      <div class="sigwrap"><canvas id="sigPad"></canvas></div>
+      <div class="row" style="margin-top:8px">
+        <button type="button" id="sigClear">مسح التوقيع</button>
+      </div>
+    </div>
+    <div id="uploadBox" class="hidden">
+      <input type="file" id="sigFile" accept="image/*">
+      <div class="hint">تُزال الخلفية البيضاء تلقائيًا ويُقصّ الهامش الفارغ.</div>
+    </div>
+    <label>حجم التوقيع: <span id="ssVal"></span></label>
+    <input type="range" id="sigScale" min="60" max="180" step="5" value="100">
+
+    <div class="chk"><input type="checkbox" id="remember" checked><span>حفظ الاسم والجهة والتوقيع على هذا الجهاز</span></div>
+
+    <div class="actions">
+      <button type="button" class="primary" id="btnOk">موافق — إنشاء PDF وصورة</button>
+      <button type="button" id="btnPdf">تنزيل PDF فقط</button>
+      <button type="button" id="btnPng">تنزيل صورة PNG فقط</button>
+      <button type="button" id="btnShare" class="hidden">مشاركة الملف</button>
+      <button type="button" id="btnReset">طلب جديد (مسح التفاصيل)</button>
+    </div>
+    <div class="status" id="status"></div>
+  </section>
+
+  <section class="card preview">
+    <canvas id="preview"></canvas>
+  </section>
+</main>
+
+<script>
+(() => {
+  // ===== Form geometry (pixels of the original 1059×1486 template) =====
+  const TPL_W = 1059, TPL_H = 1486;
+  const G = {
+    date:      { right: 296, baseline: 152, maxW: 175, size: 22 },
+    compraBoxes: [ {x:141, y:432}, {x:915, y:433} ],
+    subject:   { x1: 278, x2: 750, top: 489, bottom: 563 },
+    lines:     { x1: 150, x2: 918, ys: [596.5, 634.5, 673.5, 712.5, 751.5] },
+    name:      { x1: 284, x2: 750, top: 786, bottom: 831 },
+    authority: { x1: 284, x2: 750, top: 831, bottom: 873 },
+    signature: { x1: 282, x2: 752, top: 873, bottom: 914 },
+  };
+  const SCALE = 2;                              // render resolution multiplier
+  const FONT = '"Amiri", "Noto Naskh Arabic", "Traditional Arabic", serif';
+  const INK = '#0b2a6b';                        // dark blue ink
+
+  const $ = id => document.getElementById(id);
+  const tpl = new Image();
+  tpl.src = "__FORM_IMG__";
+
+  const out = document.createElement('canvas');
+  out.width = TPL_W * SCALE; out.height = TPL_H * SCALE;
+  const preview = $('preview');
+  preview.width = out.width; preview.height = out.height;
+
+  // ===== helpers =====
+  const isRTL = s => {
+    const m = s.match(/[֐-ࣿיִ-ﻼ]|[A-Za-zÀ-ɏ]/);
+    return !m || /[֐-ࣿיִ-ﻼ]/.test(m[0]);
+  };
+  const setFont = (ctx, px, bold) => { ctx.font = `${bold ? '700 ' : ''}${px * SCALE}px ${FONT}`; };
+
+  function drawLine(ctx, text, x1, x2, baseline, rtl) {
+    ctx.direction = rtl ? 'rtl' : 'ltr';
+    ctx.textAlign = rtl ? 'right' : 'left';
+    ctx.fillText(text, (rtl ? x2 : x1) * SCALE, baseline * SCALE);
+  }
+
+  // Single-line text, auto-shrunk to fit width, vertically centred in a cell.
+  function drawCell(ctx, text, box, size) {
+    text = (text || '').trim(); if (!text) return;
+    const w = box.x2 - box.x1; let px = size;
+    setFont(ctx, px);
+    while (ctx.measureText(text).width > w * SCALE && px > 10) { px -= 0.5; setFont(ctx, px); }
+    const baseline = (box.top + box.bottom) / 2 + px * 0.33;
+    drawLine(ctx, text, box.x1, box.x2, baseline, isRTL(text));
+  }
+
+  // Wrap paragraphs into lines of max width (in template px) at given font size.
+  function wrap(ctx, text, maxW, px) {
+    setFont(ctx, px);
+    const lines = [];
+    for (const para of text.replace(/\r/g, '').split('\n')) {
+      const words = para.split(/\s+/).filter(Boolean);
+      if (!words.length) { lines.push({ t: '', rtl: true }); continue; }
+      const rtl = isRTL(para);
+      let cur = '';
+      for (const word of words) {
+        const test = cur ? cur + ' ' + word : word;
+        if (ctx.measureText(test).width <= maxW * SCALE || !cur) {
+          // break a single overlong word by characters
+          if (!cur && ctx.measureText(word).width > maxW * SCALE) {
+            let piece = '';
+            for (const ch of word) {
+              if (ctx.measureText(piece + ch).width > maxW * SCALE) { lines.push({ t: piece, rtl }); piece = ch; }
+              else piece += ch;
+            }
+            cur = piece;
+          } else cur = test;
+        } else { lines.push({ t: cur, rtl }); cur = word; }
+      }
+      if (cur) lines.push({ t: cur, rtl });
+    }
+    // drop trailing empty lines
+    while (lines.length && !lines[lines.length - 1].t) lines.pop();
+    return lines;
+  }
+
+  function formatDate() {
+    const v = $('date').value, fmt = $('dateFmt').value;
+    if (!v || fmt === 'none') return '';
+    const [y, m, d] = v.split('-').map(Number);
+    const greg = `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y}`;
+    let hijri = '';
+    try {
+      const dt = new Date(Date.UTC(y, m - 1, d, 12));
+      const parts = new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn',
+        { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }).formatToParts(dt);
+      const g = t => (parts.find(p => p.type === t) || {}).value || '';
+      hijri = `${g('day')}/${g('month')}/${g('year')} هـ`;
+    } catch (e) { hijri = ''; }
+    if (fmt === 'hijri') return hijri || greg;
+    if (fmt === 'both') return hijri ? `${greg} م — ${hijri}` : greg;
+    return greg;
+  }
+
+  // ===== signature =====
+  let sigImg = null;          // trimmed signature canvas (transparent background)
+  const pad = $('sigPad'), pctx = pad.getContext('2d');
+  let drawing = false, padHasInk = false, last = null;
+
+  function sizePad() {
+    const r = pad.getBoundingClientRect();
+    const keep = padHasInk ? pad.toDataURL() : null;
+    pad.width = Math.max(1, Math.round(r.width * 2)); pad.height = Math.round(170 * 2);
+    pctx.lineCap = 'round'; pctx.lineJoin = 'round'; pctx.strokeStyle = INK; pctx.lineWidth = 5;
+    if (keep) { const im = new Image(); im.onload = () => pctx.drawImage(im, 0, 0, pad.width, pad.height); im.src = keep; }
+  }
+  const pt = e => { const r = pad.getBoundingClientRect(); return { x: (e.clientX - r.left) * pad.width / r.width, y: (e.clientY - r.top) * pad.height / r.height }; };
+  pad.addEventListener('pointerdown', e => { drawing = true; last = pt(e); pad.setPointerCapture(e.pointerId);
+    pctx.beginPath(); pctx.arc(last.x, last.y, 2.5, 0, Math.PI * 2); pctx.fillStyle = INK; pctx.fill(); padHasInk = true; });
+  pad.addEventListener('pointermove', e => { if (!drawing) return; const p = pt(e);
+    pctx.beginPath(); pctx.moveTo(last.x, last.y); pctx.lineTo(p.x, p.y); pctx.stroke(); last = p; });
+  const endDraw = () => { if (!drawing) return; drawing = false; sigImg = trim(pad); saveSig(); render(); };
+  pad.addEventListener('pointerup', endDraw); pad.addEventListener('pointercancel', endDraw);
+
+  function trim(src) {
+    const c = src.getContext('2d'); const { width: w, height: h } = src;
+    const data = c.getImageData(0, 0, w, h).data;
+    let x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++)
+      if (data[(y * w + x) * 4 + 3] > 10) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (x1 < 0) return null;
+    const t = document.createElement('canvas'); t.width = x1 - x0 + 1; t.height = y1 - y0 + 1;
+    t.getContext('2d').drawImage(src, x0, y0, t.width, t.height, 0, 0, t.width, t.height);
+    return t;
+  }
+
+  function loadSigFromImage(im, removeBg) {
+    const c = document.createElement('canvas');
+    const k = Math.min(1, 1200 / im.width);
+    c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+    const x = c.getContext('2d'); x.drawImage(im, 0, 0, c.width, c.height);
+    if (removeBg) {
+      const d = x.getImageData(0, 0, c.width, c.height), a = d.data;
+      for (let i = 0; i < a.length; i += 4) {
+        const lum = 0.299 * a[i] + 0.587 * a[i + 1] + 0.114 * a[i + 2];
+        if (lum > 200) a[i + 3] = 0; else if (lum > 150) a[i + 3] = Math.round(a[i + 3] * (200 - lum) / 50);
+      }
+      x.putImageData(d, 0, 0);
+    }
+    return trim(c);
+  }
+
+  $('sigFile').addEventListener('change', e => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => { const im = new Image(); im.onload = () => { sigImg = loadSigFromImage(im, true); saveSig(); render(); }; im.src = r.result; };
+    r.readAsDataURL(f);
+  });
+  $('sigClear').addEventListener('click', () => { pctx.clearRect(0, 0, pad.width, pad.height); padHasInk = false; sigImg = null; saveSig(); render(); });
+  $('tabDraw').addEventListener('click', () => { $('tabDraw').classList.add('active'); $('tabUpload').classList.remove('active'); $('drawBox').classList.remove('hidden'); $('uploadBox').classList.add('hidden'); sizePad(); });
+  $('tabUpload').addEventListener('click', () => { $('tabUpload').classList.add('active'); $('tabDraw').classList.remove('active'); $('uploadBox').classList.remove('hidden'); $('drawBox').classList.add('hidden'); });
+
+  // ===== storage (per-device convenience only) =====
+  const KEY = 'notaPedido.v1';
+  const store = {
+    get() { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { return {}; } },
+    set(o) { try { localStorage.setItem(KEY, JSON.stringify(o)); } catch (e) {} },
+  };
+  function saveProfile() {
+    if (!$('remember').checked) { store.set({ remember: false }); return; }
+    const s = store.get();
+    Object.assign(s, { remember: true, name: $('name').value, authority: $('authority').value,
+      dateFmt: $('dateFmt').value, fontSize: $('fontSize').value, sigScale: $('sigScale').value });
+    store.set(s);
+  }
+  function saveSig() {
+    if (!$('remember').checked) return;
+    const s = store.get(); s.sig = sigImg ? sigImg.toDataURL('image/png') : null; store.set(s);
+  }
+
+  // ===== render =====
+  function render() {
+    const ctx = out.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, out.width, out.height);
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    if (tpl.complete && tpl.naturalWidth) ctx.drawImage(tpl, 0, 0, out.width, out.height);
+    ctx.fillStyle = INK; ctx.textBaseline = 'alphabetic';
+
+    // date (written to the left of «التاريخ:»)
+    const ds = formatDate();
+    if (ds) {
+      let px = G.date.size; setFont(ctx, px);
+      while (ctx.measureText(ds).width > 260 * SCALE && px > 11) { px -= 0.5; setFont(ctx, px); }
+      ctx.direction = 'rtl'; ctx.textAlign = 'right';
+      ctx.fillText(ds, G.date.right * SCALE, G.date.baseline * SCALE);
+    }
+
+    // purchase checkbox
+    if ($('compra').checked) {
+      ctx.save(); ctx.strokeStyle = INK; ctx.lineWidth = 3 * SCALE; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      for (const b of G.compraBoxes) {
+        ctx.beginPath(); ctx.moveTo((b.x - 6) * SCALE, (b.y) * SCALE);
+        ctx.lineTo((b.x - 1) * SCALE, (b.y + 6) * SCALE); ctx.lineTo((b.x + 9) * SCALE, (b.y - 9) * SCALE); ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // subject
+    drawCell(ctx, $('subject').value, G.subject, 24);
+
+    // details on dotted lines
+    const L = G.lines, maxW = L.x2 - L.x1, n = L.ys.length, text = $('details').value.trim();
+    const hint = $('detailsHint'); hint.textContent = ''; hint.className = 'hint';
+    if (text) {
+      let px = +$('fontSize').value, lines = wrap(ctx, text, maxW, px);
+      while (lines.length > n && px > 12) { px -= 0.5; lines = wrap(ctx, text, maxW, px); }
+      setFont(ctx, px);
+      lines.slice(0, n).forEach((ln, i) => { if (ln.t) drawLine(ctx, ln.t, L.x1, L.x2, L.ys[i] - 6, ln.rtl); });
+      if (lines.length > n) { hint.textContent = `تنبيه: النص أطول من المساحة المتاحة؛ لم يُطبع ${lines.length - n} سطر/أسطر. اختصر النص.`; hint.className = 'hint warn'; }
+      else if (px < +$('fontSize').value) hint.textContent = `صُغِّر الخط تلقائيًا إلى ${px} ليتّسع النص.`;
+    }
+
+    drawCell(ctx, $('name').value, G.name, 24);
+    drawCell(ctx, $('authority').value, G.authority, 24);
+
+    // signature, centred in its cell; may slightly exceed the cell height like a real signature
+    if (sigImg) {
+      const s = G.signature, k = +$('sigScale').value / 100;
+      const boxH = (s.bottom - s.top) * 1.2 * k, boxW = (s.x2 - s.x1) * 0.55 * k;
+      const r = Math.min(boxW / sigImg.width, boxH / sigImg.height);
+      const w = sigImg.width * r, h = sigImg.height * r;
+      const cx = (s.x1 + s.x2) / 2, cy = (s.top + s.bottom) / 2 + 2;
+      ctx.drawImage(sigImg, (cx - w / 2) * SCALE, (cy - h / 2) * SCALE, w * SCALE, h * SCALE);
+    }
+
+    const pv = preview.getContext('2d');
+    pv.clearRect(0, 0, preview.width, preview.height); pv.drawImage(out, 0, 0);
+  }
+
+  // ===== export =====
+  const fileBase = () => `Nota-de-Pedido-${$('date').value || 'sin-fecha'}`;
+  const status = msg => { $('status').textContent = msg; };
+  function download(blob, name) {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }
+  const pngBlob = () => new Promise(res => out.toBlob(res, 'image/png'));
+  function pdfBlob() {
+    if (!window.jspdf) throw new Error('تعذّر تحميل مكتبة PDF.');
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+    const pw = 210, ph = 297, r = Math.min(pw / TPL_W, ph / TPL_H);
+    const w = TPL_W * r, h = TPL_H * r;
+    doc.addImage(out.toDataURL('image/jpeg', 0.95), 'JPEG', (pw - w) / 2, (ph - h) / 2, w, h);
+    doc.setProperties({ title: 'Nota de Pedido' });
+    return doc.output('blob');
+  }
+  async function exportFiles(pdf, png) {
+    await ensureFonts(); render(); saveProfile();
+    try {
+      if (pdf) download(pdfBlob(), fileBase() + '.pdf');
+      if (png) download(await pngBlob(), fileBase() + '.png');
+      status('تم إنشاء الملف' + (pdf && png ? 'ين' : '') + ' ✓');
+    } catch (e) { status(''); alert(e.message); }
+  }
+  $('btnOk').addEventListener('click', () => exportFiles(true, true));
+  $('btnPdf').addEventListener('click', () => exportFiles(true, false));
+  $('btnPng').addEventListener('click', () => exportFiles(false, true));
+
+  if (navigator.canShare && navigator.canShare({ files: [new File([''], 'x.pdf', { type: 'application/pdf' })] })) {
+    $('btnShare').classList.remove('hidden');
+    $('btnShare').addEventListener('click', async () => {
+      await ensureFonts(); render(); saveProfile();
+      try {
+        const files = [new File([pdfBlob()], fileBase() + '.pdf', { type: 'application/pdf' })];
+        await navigator.share({ files, title: 'نموذج طلب' });
+      } catch (e) { if (e.name !== 'AbortError') alert(e.message); }
+    });
+  }
+
+  $('btnReset').addEventListener('click', () => {
+    $('subject').value = ''; $('details').value = ''; $('compra').checked = false;
+    $('date').value = todayISO(); status(''); render();
+  });
+
+  // ===== init =====
+  function todayISO() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+  let fontsReady = null;
+  function ensureFonts() {
+    if (!fontsReady) fontsReady = Promise.all([
+      document.fonts.load(`40px Amiri`, 'نموذج طلب Abc'),
+    ]).catch(() => {}).then(() => document.fonts.ready);
+    return fontsReady;
+  }
+
+  const s = store.get();
+  $('date').value = todayISO();
+  if (s.remember === false) $('remember').checked = false;
+  if (s.name) $('name').value = s.name;
+  if (s.authority) $('authority').value = s.authority;
+  if (s.dateFmt) $('dateFmt').value = s.dateFmt;
+  if (s.fontSize) $('fontSize').value = s.fontSize;
+  if (s.sigScale) $('sigScale').value = s.sigScale;
+  if (s.sig) { const im = new Image(); im.onload = () => { sigImg = loadSigFromImage(im, false); render(); }; im.src = s.sig; }
+
+  const showVals = () => { $('fsVal').textContent = $('fontSize').value; $('ssVal').textContent = $('sigScale').value + '%'; };
+  ['date','dateFmt','compra','subject','details','fontSize','name','authority','sigScale'].forEach(id => {
+    $(id).addEventListener('input', () => { showVals(); render(); });
+    $(id).addEventListener('change', () => { showVals(); render(); saveProfile(); });
+  });
+  $('remember').addEventListener('change', () => { saveProfile(); if ($('remember').checked) saveSig(); });
+  window.addEventListener('resize', () => { if (!$('drawBox').classList.contains('hidden')) sizePad(); });
+
+  showVals(); sizePad();
+  tpl.onload = render;
+  ensureFonts().then(render);
+  render();
+})();
+</script>
+</body>
+</html>
